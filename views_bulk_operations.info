@@ -4,6 +4,7 @@ dependencies[] = entity
 dependencies[] = views
 package = Views
 core = 7.x
+version = 7.x-3.x-wwm
 php = 5.2.9
 
 files[] = plugins/operation_types/base.class.php
