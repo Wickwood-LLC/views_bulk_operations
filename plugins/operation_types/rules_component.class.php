@@ -51,7 +51,7 @@ class ViewsBulkOperationsRulesComponent extends ViewsBulkOperationsBaseOperation
 
     // Store this operations provided parameters
     $this->providedParameters = $this->getAdminOption('parameters', array());
-    array_walk($this->providedParameters, function(&$value, $key, $operationsField){
+    array_walk($this->providedParameters, function(&$value, $key, $operationsField) {
       $fake_item = array(
         'alter_text' => TRUE,
         'text' => $value,
@@ -92,18 +92,18 @@ class ViewsBulkOperationsRulesComponent extends ViewsBulkOperationsBaseOperation
    * whether the operation's form methods should be invoked.
    */
   public function configurable() {
-    if($this->getAdminOption('provide_parameters', FALSE)) {
+    if ($this->getAdminOption('provide_parameters', FALSE)) {
       $action = rules_action('component_' . $this->operationInfo['key']);
 
       $parameterInfo = $action->parameterInfo();
       $parameterInfo = array_splice($parameterInfo, 1);
 
-      $primitiveParameters = array_filter($parameterInfo, function($value){
+      $primitiveParameters = array_filter($parameterInfo, function($value) {
         return in_array($value['type'], array('decimal', 'integer', 'text'));
       });
 
       $providedParameters = $this->getProvidedParameters();
-      if(count($parameterInfo) > 0 && count($parameterInfo) <= count($primitiveParameters) && 
+      if (count($parameterInfo) > 0 && count($parameterInfo) <= count($primitiveParameters) &&
           count($primitiveParameters) <= count(array_filter($providedParameters))) {
         return FALSE;
       }
@@ -145,12 +145,12 @@ class ViewsBulkOperationsRulesComponent extends ViewsBulkOperationsBaseOperation
     // tokens.
     $set_parameters = array($entity_key => array('type' => $entity_type, 'label' => $info['label']));
     $action_parameters = array($entity_key . ':select' => $entity_key);
-    if($this->getAdminOption('provide_parameters', FALSE)) {
+    if ($this->getAdminOption('provide_parameters', FALSE)) {
       $providedParameters = $this->getProvidedParameters();
-      foreach($providedParameters as $providedParameter => $providedParameterValue) {
+      foreach ($providedParameters as $providedParameter => $providedParameterValue) {
         list($providedParameterKey, $providedParameterType) = explode(':', $providedParameter);
         $set_parameters[$providedParameterKey] = array('type' => $providedParameterType, 'label' => $providedParameterKey);
-        $action_parameters[$providedParameterKey.':select'] = $providedParameterKey;
+        $action_parameters[$providedParameterKey . ':select'] = $providedParameterKey;
       }
     }
     $set = rules_action_set($set_parameters);
@@ -169,8 +169,8 @@ class ViewsBulkOperationsRulesComponent extends ViewsBulkOperationsBaseOperation
     unset($form['parameter'][$entity_key]);
 
     // Remove any provided parameters, as they should also use the passed in entities
-    if($this->getAdminOption('provide_parameters', FALSE)) {
-      foreach($providedParameters as $providedParameter => $providedParameterValue) {
+    if ($this->getAdminOption('provide_parameters', FALSE)) {
+      foreach ($providedParameters as $providedParameter => $providedParameterValue) {
         list($providedParameterKey, $providedParameterType) = explode(':', $providedParameter);
         unset($form['parameter'][$providedParameterKey]);
       }
@@ -242,11 +242,11 @@ class ViewsBulkOperationsRulesComponent extends ViewsBulkOperationsBaseOperation
     $action = rules_action('component_' . $this->operationInfo['key'], array($entity_key . ':select' => $entity_key));
 
     $parameterInfo = $action->parameterInfo();
-    $primitiveParameters = array_filter($parameterInfo, function($value){
+    $primitiveParameters = array_filter($parameterInfo, function($value) {
       return in_array($value['type'], array('decimal', 'integer', 'text'));
     });
 
-    if(count($parameterInfo) > 0 && count($parameterInfo) == count($primitiveParameters)) {
+    if (count($parameterInfo) > 0 && count($parameterInfo) == count($primitiveParameters)) {
 
       $provide_parameters = $this->getAdminOption('provide_parameters', FALSE);
       $parameters = $this->getAdminOption('parameters', FALSE);
@@ -272,11 +272,11 @@ class ViewsBulkOperationsRulesComponent extends ViewsBulkOperationsBaseOperation
       $tokenOptions = $this->getTokenOptions();
 
       foreach ($parameterInfo as $name => $info) {
-        $form['parameters'][$name.':'.$info['type']] = array(
+        $form['parameters'][$name . ':' . $info['type']] = array(
           '#type' => 'select',
           '#title' => $name,
           '#options' => $tokenOptions,
-          '#default_value' => $parameters[$name.':'.$info['type']],
+          '#default_value' => $parameters[$name . ':' . $info['type']],
           '#dependency' => array(
             $dom_id . '-selected' => array(1),
             $dom_id . '-provide-parameters' => array(1),
@@ -306,9 +306,10 @@ class ViewsBulkOperationsRulesComponent extends ViewsBulkOperationsBaseOperation
     else {
       $element = rules_action('component_' . $this->operationInfo['parameters']['component_key']);
     }
-    if(array_key_exists('parameters', $context) && is_array($context['parameters'])) {
+    if (array_key_exists('parameters', $context) && is_array($context['parameters'])) {
       $element->executeByArgs(array_merge(is_array($data) ? $data : array($data), $context['parameters']));
-    } else {
+    }
+    else {
       $element->execute($data);
     }
   }
