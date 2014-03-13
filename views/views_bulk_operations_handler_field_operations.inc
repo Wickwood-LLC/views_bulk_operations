@@ -137,7 +137,7 @@ class views_bulk_operations_handler_field_operations extends views_handler_field
 
     $entity_type = $this->get_entity_type();
     $options = $this->options['vbo_operations'];
-    foreach (views_bulk_operations_get_applicable_operations($entity_type, $options) as $operation_id => $operation) {
+    foreach (views_bulk_operations_get_applicable_operations($entity_type, $options, $this) as $operation_id => $operation) {
       $operation_options = !empty($options[$operation_id]) ? $options[$operation_id] : array();
 
       $dom_id = 'edit-options-vbo-operations-' . str_replace(array('_', ':'), array('-', ''), $operation_id);
@@ -272,7 +272,7 @@ class views_bulk_operations_handler_field_operations extends views_handler_field
           continue;
         }
 
-        $operation = views_bulk_operations_get_operation($operation_id, $entity_type, $options);
+        $operation = views_bulk_operations_get_operation($operation_id, $entity_type, $options, $this);
         if (!$operation || !$operation->access($user)) {
           continue;
         }
