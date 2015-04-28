@@ -312,5 +312,8 @@ class ViewsBulkOperationsRulesComponent extends ViewsBulkOperationsBaseOperation
     else {
       $element->execute($data);
     }
+    $wrapper_type = is_array($data) ? "list<{$this->entityType}>" : $this->entityType;
+    $wrapper = entity_metadata_wrapper($wrapper_type, $data);
+    $element->execute($wrapper);
   }
 }
