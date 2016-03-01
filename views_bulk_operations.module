@@ -210,8 +210,10 @@ function views_bulk_operations_get_operation_info($operation_id = NULL) {
  *   The entity type on which the operation operates.
  * @param $options
  *   Options for this operation (label, operation settings, etc.)
+ * @param $operations_field
+ *   The field the operation is requested from
  */
-function views_bulk_operations_get_operation($operation_id, $entity_type, $options) {
+function views_bulk_operations_get_operation($operation_id, $entity_type, $options, $operations_field) {
   $operations = &drupal_static(__FUNCTION__);
 
   if (!isset($operations[$operation_id])) {
@@ -223,7 +225,7 @@ function views_bulk_operations_get_operation($operation_id, $entity_type, $optio
     $operation_info = $plugin['list callback']($operation_id);
 
     if ($operation_info) {
-      $operations[$operation_id] = new $plugin['handler']['class']($operation_id, $entity_type, $operation_info, $options);
+      $operations[$operation_id] = new $plugin['handler']['class']($operation_id, $entity_type, $operation_info, $options, $operations_field);
     }
     else {
       $operations[$operation_id] = FALSE;
@@ -241,13 +243,15 @@ function views_bulk_operations_get_operation($operation_id, $entity_type, $optio
  * @param $options
  *   An array of options for all operations, in the form of
  *   $operation_id => $operation_options.
+ * @param $operations_field
+ *   The field the operation is requested from
  */
-function views_bulk_operations_get_applicable_operations($entity_type, $options) {
+function views_bulk_operations_get_applicable_operations($entity_type, $options, $operations_field) {
   $operations = array();
   foreach (views_bulk_operations_get_operation_info() as $operation_id => $operation_info) {
     if ($operation_info['type'] == $entity_type || $operation_info['type'] == 'entity' || $operation_info['type'] == 'system') {
       $options[$operation_id] = !empty($options[$operation_id]) ? $options[$operation_id] : array();
-      $operations[$operation_id] = views_bulk_operations_get_operation($operation_id, $entity_type, $options[$operation_id]);
+      $operations[$operation_id] = views_bulk_operations_get_operation($operation_id, $entity_type, $options[$operation_id], $operations_field);
     }
   }
 
@@ -704,8 +708,8 @@ function views_bulk_operations_form_submit($form, &$form_state) {
       $form_state['select_all_pages'] = $form_state['values']['select_all'];
 
       $options = $vbo->get_operation_options($form_state['values']['operation']);
-      $form_state['operation'] = $operation = views_bulk_operations_get_operation($form_state['values']['operation'], $entity_type, $options);
-      if (!$operation->configurable() && $operation->getAdminOption('skip_confirmation')) {
+      $form_state['operation'] = $operation = views_bulk_operations_get_operation($form_state['values']['operation'], $entity_type, $options, $vbo);
+      if (!$operation->configurable($vbo) && $operation->getAdminOption('skip_confirmation')) {
         break; // Go directly to execution
       }
       $form_state['step'] = $operation->configurable() ? 'views_bulk_operations_config_form' : 'views_bulk_operations_confirm_form';
@@ -790,6 +794,13 @@ function views_bulk_operations_execute($vbo, $operation, $selection, $select_all
       'exposed_input' => $vbo->view->get_exposed_input(),
     ),
   );
+  if ($operation->getAdminOption('provide_parameters', FALSE)) {
+    $parameters = $operation->getAdminOption('parameters', array());
+    foreach (array_keys($parameters) as $parameter) {
+        $parameter_value = $vbo->tokenize_value($parameters[$parameter]);
+        $options['parameters'][$parameter] = $parameter_value;
+    }
+  }
   // Create an array of rows in the needed format.
   $rows = array();
   $current = 1;
@@ -1100,6 +1111,9 @@ function views_bulk_operations_queue_item_process($queue_item_data, &$log = NULL
     if ($operation->needsRows()) {
       $operation_context['rows'] = array($row_index => $row['views_row']);
     }
+    if ($operation->getAdminOption('provide_parameters', FALSE)) {
+      $operation_context['parameters'] = $options['parameters'];
+    }
     $operation->execute($entity, $operation_context);
 
     unset($row_group[$row_index]);
@@ -1183,6 +1197,9 @@ function views_bulk_operations_direct_process($operation, $rows, $options) {
         foreach ($rows as $row_index => $row) {
           $operation_context['rows'][$row_index] = $row['views_row'];
         }
+      }
+      if ($operation->getAdminOption('provide_parameters', FALSE)) {
+        $operation_context['parameters'] = $options['parameters'];
       }
       $operation->execute($entities, $operation_context);
     }
