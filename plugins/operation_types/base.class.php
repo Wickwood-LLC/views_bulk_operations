@@ -49,8 +49,10 @@ abstract class ViewsBulkOperationsBaseOperation {
    *   An array of information about the operation.
    * @param $adminOptions
    *   An array of options set by the admin.
+   * @param $operationField
+   *   The field the operation is requested from
    */
-  public function __construct($operationId, $entityType, array $operationInfo, array $adminOptions) {
+  public function __construct($operationId, $entityType, array $operationInfo, array $adminOptions, $operationsField) {
     $this->operationId = $operationId;
     $this->entityType = $entityType;
     $this->operationInfo = $operationInfo;
