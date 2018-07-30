@@ -31,7 +31,8 @@ function views_bulk_operations_modify_action_info() {
  * Action function.
  *
  * Goes through new values and uses them to modify the passed entity by either
- * replacing the existing values, or appending to them (based on user input).
+ * appending the new values, replacing existing ones, or removing them (based
+ * on user input).
  */
 function views_bulk_operations_modify_action($entity, $context) {
   list(,, $bundle_name) = entity_extract_ids($context['entity_type'], $entity);
@@ -46,20 +47,19 @@ function views_bulk_operations_modify_action($entity, $context) {
       // already been figured out if this field is translatable or not and
       // applied the appropriate language code to the field.
       $language = key($pseudo_entity->{$key});
-      // Replace any tokens that might exist in the field columns.
-      foreach ($pseudo_entity->{$key}[$language] as $delta => &$item) {
-        foreach ($item as $column => $value) {
-          if (is_string($value)) {
-            $item[$column] = token_replace($value, array($context['entity_type'] => $entity), array('sanitize' => FALSE));
-          }
-        }
-      }
 
       if (in_array($key, $context['append']['bundle_' . $bundle_name]) && !empty($entity->{$key})) {
-        $entity->{$key}[$language] = array_merge($entity->{$key}[$language], $pseudo_entity->{$key}[$language]);
+        // Append the new items while preventing duplicates. We perform the
+        // comparison between existing and new field items on their first
+        // columns only.
+        $field_info = field_info_field($key);
+        $value_key = key($field_info['columns']);
+        $items = _views_bulk_operations_modify_action_normalize_items($entity->{$key}[$language], $value_key);
+        $pseudo_items = _views_bulk_operations_modify_action_normalize_items($pseudo_entity->{$key}[$language], $value_key);
+        $diff = array_diff($pseudo_items, $items);
+        $entity->{$key}[$language] = array_values(array_merge($entity->{$key}[$language], array_intersect_key($pseudo_entity->{$key}[$language], $diff)));
 
         // Check if we breached cardinality, and notify the user.
-        $field_info = field_info_field($key);
         $field_count = count($entity->{$key}[$language]);
         if ($field_info['cardinality'] != FIELD_CARDINALITY_UNLIMITED && $field_count > $field_info['cardinality']) {
           $entity_label = entity_label($context['entity_type'], $entity);
@@ -71,11 +71,16 @@ function views_bulk_operations_modify_action($entity, $context) {
             ));
           drupal_set_message($warning, 'warning', FALSE);
         }
-
-        // Prevent storing duplicate references.
-        if (strpos($field_info['type'], 'reference') !== FALSE) {
-          $entity->{$key}[$language] = array_unique($entity->{$key}[LANGUAGE_NONE], SORT_REGULAR);
-        }
+      }
+      elseif (in_array($key, $context['remove']['bundle_' . $bundle_name]) && !empty($entity->$key)) {
+        // We perform the comparison between existing and new field items on
+        // their first columns only.
+        $field_info = field_info_field($key);
+        $value_key = key($field_info['columns']);
+        $items = _views_bulk_operations_modify_action_normalize_items($entity->{$key}[$language], $value_key);
+        $pseudo_items = _views_bulk_operations_modify_action_normalize_items($pseudo_entity->{$key}[$language], $value_key);
+        $diff = array_diff($items, $pseudo_items);
+        $entity->{$key}[$language] = array_values(array_intersect_key($entity->{$key}[$language], $diff));
       }
       else {
         $entity->{$key}[$language] = $pseudo_entity->{$key}[$language];
@@ -117,6 +122,16 @@ function views_bulk_operations_modify_action($entity, $context) {
       }
     }
   }
+}
+
+/**
+ * Helper function to normalize field items for comparison.
+ */
+function _views_bulk_operations_modify_action_normalize_items($items, $value_key) {
+  foreach ($items as $delta => $item) {
+    $items[$delta] = $item[$value_key];
+  }
+  return $items;
 }
 
 /**
@@ -282,9 +297,15 @@ function views_bulk_operations_modify_action_form($context, &$form_state) {
 
         $field_info = field_info_field($field_name);
         if ($field_info['cardinality'] != 1) {
-          $form[$form_key]['_append::' . $field_name] = array(
-            '#type' => 'checkbox',
-            '#title' => t('Add new value(s) to %label, instead of overwriting the existing values.', array('%label' => $field['label'])),
+          $form[$form_key]['_action::' . $field_name] = array(
+            '#type' => 'radios',
+            '#title' => t('Action to perform on %label', array('%label' => $field['label'])),
+            '#options' => array(
+              'append' => t('Add values above without removing existing values'),
+              'replace' => t('Replace existing values with values above'),
+              'remove' => t('Remove values above'),
+            ),
+            '#default_value' => 'append',
             '#states' => array(
               'visible' => array(
                 '#edit-bundle-' . str_replace('_', '-', $bundle_name) . '-show-value-' . str_replace('_', '-', $field_name) => array('checked' => TRUE),
@@ -362,6 +383,7 @@ function views_bulk_operations_modify_action_validate($form, &$form_state) {
     // Store names of selected and appended entity values in a nicer format.
     $form_state['selected'][$group] = array();
     $form_state['append'][$group] = array();
+    $form_state['remove'][$group] = array();
 
     // This group has no values, move on.
     if (!isset($form_state['values'][$group])) {
@@ -376,6 +398,13 @@ function views_bulk_operations_modify_action_validate($form, &$form_state) {
       if (!empty($form_state['values'][$group]['_append::' . $key])) {
         $form_state['append'][$group][] = $key;
         unset($form_state['values'][$group]['_append::' . $key]);
+      }
+      elseif (!empty($form_state['values'][$group]['_action::' . $key])) {
+        $action = $form_state['values'][$group]['_action::' . $key];
+        if ($action == 'append' || $action == 'remove') {
+          $form_state[$action][$group][] = $key;
+        }
+        unset($form_state['values'][$group]['_action::' . $key]);
       }
     }
     unset($form_state['values'][$group]['show_value']);
@@ -430,6 +459,7 @@ function views_bulk_operations_modify_action_submit($form, $form_state) {
 
   return array(
     'append' => $form_state['append'],
+    'remove' => $form_state['remove'],
     'selected' => $form_state['selected'],
     'entities' => $form_state['entities'],
     'properties' => isset($form_state['values']['properties']) ? $form_state['values']['properties'] : array(),
